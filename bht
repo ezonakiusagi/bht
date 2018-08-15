@@ -154,11 +154,10 @@ function run_badblocks {
     # wait for badblocks to finish
     wait
     # collect SMART data after the test
-    TMPFILE=$(mktemp /var/tmp/bht.XXXXXX)
     smartctl -a $D > ${_dir}/post-test.smart
     # when we're done, send out notification if we have EMAIL
     if [[ -n $EMAIL ]] ; then
-	_mesg="Model=${HDD_DATA[$_hdd]}.model, Serial=${HDD_DATA[$_hdd]}"
+	_mesg="Model=${HDD_DATA[$_hdd].model}, Serial=${HDD_DATA[$_hdd].serial}"
 	# grab the first part of the status string
 	_status=$(awk '{gsub(/\b+/,"\n",$0); print}' ${_dir}/badblocks.out \
 	    | awk -F: '$1~"^Testing with" {print $1}')
