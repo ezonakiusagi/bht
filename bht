@@ -94,8 +94,14 @@ function terminate_tests {
 	_hdd=${D##*/}
 	if [[ -f ${D}/badblocks.pid ]] ; then
 	    read _pid <${D}/badblocks.pid
-	    print -- "$_hdd: terminating PID=$_pid."
-	    kill $_pid
+	    # check pid is actually for badblocks
+	    if [[ "$(ps -eo pid,comm \
+		| awk -v pid=$_pid '$1==pid && $2=="badblocks" {print $1}')" \
+		-eq $_pid ]] ; then
+		# print message
+		print -- "$_hdd: terminating PID=$_pid."
+		kill $_pid
+	    fi
 	fi
     done
     return 0
