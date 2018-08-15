@@ -81,7 +81,7 @@ INFO: ==> [MAXTORSTM3500630AS|9QG04LGB]
 ```
 to check on status:
 ```
-$ bht --directory /var/tmp/bht-data --status
+$ bht --status
 MAXTORSTM3500630AS_9QG03B71:
 	badblocks[Testing with pattern 0xaa   0.64% done, 0:42 elapsed. (0/0/0 errors)]
 	SMART:[Reallocated_Sector_Ct=0]
