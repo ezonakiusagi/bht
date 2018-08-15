@@ -169,7 +169,7 @@ function run_badblocks {
 	_status+=$(awk '{gsub(/\b+/,"\n",$0); print}' ${_dir}/badblocks.out \
 	    | awk '!/^$/ {print}' | tail -1)
 	# append to _mesg
-	_mesg+="badblocks[$_status]"
+	_mesg+="badblocks[$_status]$NL"
 	# append SMART check
 	_mesg+="$(SMART_check ${_dir}/post-test.smart)"
 	print "$_mesg"|mailx -s "badblocks testing of $_hdd ended" $EMAIL
