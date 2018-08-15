@@ -1,0 +1,265 @@
+#!/bin/ksh
+
+##
+## USAGE definition
+##
+# usage: bht [options] [list of hdds]
+#   -b, --blocks=   the size of blocks in bytes. default is 32768
+#   -n, --stride=   the number of blocks per test. default is 512
+#   -e, --email=    email address to send notifications
+#   -s, --status    show status of running tests
+USAGE=$'[-?\n@(#)$Id: 0.1\n]'
+USAGE+="[-author?Bond Masuda <bond.masuda@jlbond.com>]"
+USAGE+="[-copyright?Copyright (C) 2018 Bond Masuda.]"
+USAGE+="[-license?GNU General Public License v3.]"
+USAGE+="[+NAME?bht --- bulk hard-drive tester.]"
+USAGE+="[+DESCRIPTION?bht is a bulk hard drive testing "
+USAGE+="script that runs badblocks on multiple hard drives "
+USAGE+="in parallel and allows to user to walk away and "
+USAGE+="login later to check on the results.]"
+USAGE+="[b:blocks]:[blocks:=32768?the size of blocks in bytes. default is 32768.]"
+USAGE+="[n:stride]:[stride:=512?the number of blocks per test. default is 512.]"
+USAGE+="[e:email]:[stride?email address to send notifications.]"
+USAGE+="[s:status?show status of current tests.]"
+USAGE+="[d:directory]:[directory?path to directory with bht data. defaults to current working directory.]"
+
+##
+## configuration settings
+##
+
+# options flags
+OPT_BLOCKS=0
+OPT_STRIDE=0
+OPT_EMAIL=0
+OPT_STATUS=0
+OPT_BHTDIR=0
+# option variables
+BLOCKS_SIZE=32768
+STRIDE_SIZE=512
+EMAIL=
+BHTDIR="$(pwd)"
+
+##
+## functions
+##
+
+#-----------------------------------------------------------------------------
+# description:
+# inputs:
+# outputs:
+# return:
+#-----------------------------------------------------------------------------
+function show_status {
+    typeset _dir=$1
+    typeset _hdd
+    typeset _status
+
+    for D in $(find ${_dir}/disks -mindepth 1 -type d)
+    do
+	# extract hdd from path $D
+	_hdd=${D##*/}
+	if [[ -f ${D}/badblocks.out ]] ; then
+	    # grab the first part of the status string
+	    _status=$(awk '{gsub(/\b+/,"\n",$0); print}' ${D}/badblocks.out \
+		| awk -F: '$1~"^Testing with" {print $1}')
+	    # now grab the latest of the last part
+	    _status+=$(awk '{gsub(/\b+/,"\n",$0); print}' ${D}/badblocks.out \
+		| awk '!/^$/ {print}' | tail -1)
+	    print -- "$_hdd: $_status"
+	fi
+    done
+    # to be worked on
+    return 0
+}
+    
+#-----------------------------------------------------------------------------
+# description:
+# inputs:
+# outputs:
+# return:
+#-----------------------------------------------------------------------------
+function run_badblocks {
+    typeset _hdd=$1
+    typeset _dir=$2
+    typeset _status
+
+    print "$_hdd" > $_dir/log
+    badblocks -b $BLOCKS_SIZE -c $STRIDE_SIZE -wsv $_hdd >${_dir}/badblocks.out 2>&1
+    # when we're done, send out notification if we have EMAIL
+    if [[ -n $EMAIL ]] ; then
+	# grab the first part of the status string
+	_status=$(awk '{gsub(/\b+/,"\n",$0); print}' ${_dir}/badblocks.out \
+	    | awk -F: '$1~"^Testing with" {print $1}')
+	# now grab the latest of the last part
+	_status+=$(awk '{gsub(/\b+/,"\n",$0); print}' ${_dir}/badblocks.out \
+	    | awk '!/^$/ {print}' | tail -1)
+	print "$_status"|mailx -s "badblocks testing of $_hdd complete" $EMAIL
+    fi
+    return 0
+}
+
+##
+## main section
+##
+
+SELF=$0
+PID=$$
+
+# process command line args
+while getopts "$USAGE" option
+do
+    case $option in
+	b|blocks)   OPT_BLOCKS=1 && BLOCKS_SIZE=$OPTARG	;;
+	n|stride)   OPT_STRIDE=1 && STRIDE_SIZE=$OPTARG	;;
+	e|email)    OPT_EMAIL=1 && EMAIL=$OPTARG	;;
+	s|status)   OPT_STATUS=1			;;
+	d|directory) OPT_BHTDIR=1 && BHTDIR=$OPTARG	;;
+    esac
+done
+
+#print "OPT_BLOCKS=$OPT_BLOCKS, OPT_STRIDE=$OPT_STRIDE, OPT_EMAIL=$OPT_EMAIL, OPT_STATUS=$OPT_STATUS, OPT_BHTDIR=$OPT_BHTDIR"
+#print "BLOCKS_SIZE=$BLOCKS_SIZE, STRIDE_SIZE=$STRIDE_SIZE, EMAIL=$EMAIL, BHTDIR=$BHTDIR"
+
+# remaining non-options should be list of hard drives to test
+shift "$((OPTIND-1))"
+typeset -a HDD_LIST=( $@ )
+#print "HDD_LIST size = ${#HDD_LIST[*]}, list = ${HDD_LIST[*]}"
+
+# check that all required external utilities are available
+for p in smartctl badblocks sha256sum mkdir id lsscsi mktemp grep awk mv find tail mailx
+do
+    if ! $(which $p 2>/dev/null 1>&2) ; then
+	print "ERR: $p is not available or not in your PATH. please install $p and try again."
+	exit 1
+    fi
+done
+
+# check that we have root privileges
+if (( $(id -u) != 0 )) ; then
+    print "ERR: this program must be run with root privileges."
+    exit 1
+fi
+
+# check conflicting options
+# --status should not be used with --blocks, --stride, --email
+if (( $OPT_STATUS == 1 && ( $OPT_BLOCKS == 1 || $OPT_STRIDE == 1 || $OPT_EMAIL == 1 ) )) ; then
+    print "ERR: cannot specify --status with --blocks, --stride, nor --email."
+    exit 1
+fi 
+
+# if OPT_STATUS=1, then BHTDIR must already exist
+if (( $OPT_STATUS == 1 )) ; then
+    if [[ ! -d $BHTDIR ]] ; then
+	print "ERR: data directory $BHTDIR doesn't exist."
+	print "ERR: cannot get status of non-existent data."
+	exit 1
+    fi
+    # must have r and x permissions
+    if [[ ! -x $BHTDIR ]] ; then
+	print "ERR: data directory $BHTDIR is not accessible by you."
+	exit 1
+    fi
+    if [[ ! -r $BHTDIR ]] ; then
+	print "ERR: data directory $BHTDIR is not readable by you."
+	exit 1
+    fi
+    # check for magic file
+    if [[ -f ${BHTDIR}/.bht ]] ; then
+	# compare checksum
+	if [[ $(sha256sum $0| awk '{print $1}') != $(awk '{print $1}' ${BHTDIR}/.bht) ]] ; then
+	    print "WARN: $BHTDIR has data generated by a different version of bht."
+	fi
+    else
+	print "ERR: $BHTDIR directory doesn't appear to have bht magic?"
+	exit 1
+    fi
+    # run show_status
+    show_status $BHTDIR
+    ret=$?
+    if [[ $ret -ne 0 ]] ; then
+	print "ERR: show_status() returned an error code [$ret]."
+	exit 1
+    fi
+    # exit success
+    exit 0
+fi
+
+# prepare to run tests
+# 1) if $BHTDIR doesn't exist, create it and setup magic file
+# 2) move to $BHTDIR
+# 3) check that all elements in HDD_LIST are valid HDDs
+if [[ ! -e $BHTDIR ]] || [[ ! -d $BHTDIR ]] ; then
+    mkdir $BHTDIR
+fi
+sha256sum $0 > ${BHTDIR}/.bht
+
+print "INFO: changing to $BHTDIR."
+cd $BHTDIR
+
+# make sure $BHTDIR is rwx
+[[ -x $BHTDIR ]] || ( print "ERR: data directory $BHTDIR is not accessible by you." && exit 1 )
+[[ -w $BHTDIR ]] || ( print "ERR: data directory $BHTDIR is not write-able by you." && exit 1 )
+[[ -r $BHTDIR ]] || ( print "ERR: data directory $BHTDIR is not read-able by you." && exit 1 )
+
+for i in ${!HDD_LIST[*]}
+do
+    # make sure it is a block device
+    if [[ ! -b ${HDD_LIST[i]} ]] ; then
+	print "WARN: ${HDD_LIST[i]} is not a block device. removing from list."
+	unset HDD_LIST[i]
+	continue
+    fi
+    # make sure it is a "disk" device in lsscsi
+    if (( $(lsscsi | awk '$2=="disk" {print $NF}' | grep -c ${HDD_LIST[i]}) == 0 )) ; then
+	print "WARN: ${HDD_LIST[i]} is not a disk in lsscsi. removing from list."
+	unset HDD_LIST[i]
+	continue
+    fi
+done
+if (( ${#HDD_LIST[*]} == 0 )) ; then
+    print "ERR: no hard drives found in list. aborting."
+    exit 1
+fi
+
+# confirm with user before running destructive test on HDDs
+print "ATTN: this hard drive testing process will wipe all data"
+print "ATTN: on the following hard drives:"
+print "ATTN: ${HDD_LIST[*]}"
+print -n "ATTN: ARE YOU SURE YOU WANT TO PROCEED?: "
+read PROCEED
+if [[ $PROCEED != @(~(+i:yes|y|affirmative)) ]] ; then
+    print "INFO: did not get affirmative response from user."
+    print "INFO: hard drive testing aborted."
+    exit 0
+fi
+
+# create "disks" subdirectory for collecting data
+[[ ! -d ${BHTDIR}/disks ]] && mkdir ${BHTDIR}/disks
+
+print "INFO: collecting SMART data from each drive."
+typeset -A HDD_DATA
+for D in ${HDD_LIST[*]}
+do
+    TMPFILE=$(mktemp /var/tmp/bht.XXXXXX)
+    smartctl -a $D > $TMPFILE
+    HDD_MODEL=$(awk -F: '$1~"^Device Model" {gsub(" ","",$2); print $2}' $TMPFILE)
+    HDD_SN=$(awk -F: '$1~"^Serial Number" {gsub(" ","",$2); print $2}' $TMPFILE)
+    [[ ! -d ${BHTDIR}/disks/${HDD_MODEL}_${HDD_SN} ]] && mkdir ${BHTDIR}/disks/${HDD_MODEL}_${HDD_SN}
+    mv -f $TMPFILE ${BHTDIR}/disks/${HDD_MODEL}_${HDD_SN}/pre-test.smart
+    print "INFO: $HDD_MODEL / $HDD_SN"
+    HDD_DATA[$D].dir=${BHTDIR}/disks/${HDD_MODEL}_${HDD_SN}
+    HDD_DATA[$D].model=${HDD_MODEL}
+    HDD_DATA[$D].serial=${HDD_SN}
+    #HDD_DATA[$D].pre_smart=${BHTDIR}/disks/${HDD_MODEL}_${HDD_SN}/pre-test.smart
+done
+
+#print "HDD_DATA = ${HDD_DATA[*]}"
+for D in ${!HDD_DATA[*]}
+do
+    print "INFO: Running badblocks on $D."
+    print "INFO: ==> output to ${HDD_DATA[$D].dir}."
+    print "INFO: ==> [${HDD_DATA[$D].model}|${HDD_DATA[$D].serial}]"
+    run_badblocks $D "${HDD_DATA[$D].dir}" &
+done
+
+print "Boom!"
