@@ -113,10 +113,31 @@ function terminate_tests {
 # outputs:
 # return:
 #-----------------------------------------------------------------------------
+function SMART_check {
+    typeset _file=$1
+    typeset -i _5_Reallocated_Sector_Ct
+    typeset -i _9_Power_On_Hours
+    typeset -i _200_Multi_Zone_Error_Rate
+
+    _5_Reallocated_Sector_Ct=$(awk '$1=="5" && $2=="Reallocated_Sector_Ct" {print $10}' $_file)
+    _9_Power_On_Hours=$(awk '$1=="9" && $2=="Power_On_Hours" {print $10}' $_file)
+    _200_Multi_Zone_Error_Rate=$(awk '$1=="200" && $2=="Multi_Zone_Error_Rate" {print $10}' $_file)
+    print "SMART:[Reallocated_Sector_Ct=$_5_Reallocated_Sector_Ct]"
+    print "SMART:[Power_On_Hours=$_9_Power_On_Hours]"
+    print "SMART:[Multi_Zone_Error_Rate=$_200_Multi_Zone_Error_Rate]"
+}
+
+#-----------------------------------------------------------------------------
+# description:
+# inputs:
+# outputs:
+# return:
+#-----------------------------------------------------------------------------
 function run_badblocks {
     typeset _hdd=$1
     typeset _dir=$2
     typeset _status
+    typeset _mesg
 
     print "$_hdd" > $_dir/log
     badblocks -b $BLOCKS_SIZE -c $STRIDE_SIZE -wsv $_hdd >${_dir}/badblocks.out 2>&1 &
@@ -128,13 +149,20 @@ function run_badblocks {
     smartctl -a $D > ${_dir}/post-test.smart
     # when we're done, send out notification if we have EMAIL
     if [[ -n $EMAIL ]] ; then
+	_mesg="Model=${HDD_DATA[$_hdd]}.model, Serial=${HDD_DATA[$_hdd]}"
 	# grab the first part of the status string
 	_status=$(awk '{gsub(/\b+/,"\n",$0); print}' ${_dir}/badblocks.out \
 	    | awk -F: '$1~"^Testing with" {print $1}')
+	# add a space
+	_status+=" "
 	# now grab the latest of the last part
 	_status+=$(awk '{gsub(/\b+/,"\n",$0); print}' ${_dir}/badblocks.out \
 	    | awk '!/^$/ {print}' | tail -1)
-	print "$_status"|mailx -s "badblocks testing of $_hdd complete" $EMAIL
+	# append to _mesg
+	_mesg+="badblocks[$_status]"
+	# append SMART check
+	_mesg+="$(SMART_check ${_dir}/post-test.smart)"
+	print "$_mesg"|mailx -s "badblocks testing of $_hdd ended" $EMAIL
     fi
     return 0
 }
@@ -168,7 +196,7 @@ typeset -a HDD_LIST=( $@ )
 #print "HDD_LIST size = ${#HDD_LIST[*]}, list = ${HDD_LIST[*]}"
 
 # check that all required external utilities are available
-for p in smartctl badblocks sha256sum mkdir id lsscsi mktemp grep awk mv find tail mailx
+for p in smartctl badblocks sha256sum mkdir id lsscsi mktemp grep awk mv find tail mailx ps
 do
     if ! $(which $p 2>/dev/null 1>&2) ; then
 	print "ERR: $p is not available or not in your PATH. please install $p and try again."
