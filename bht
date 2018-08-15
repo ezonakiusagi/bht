@@ -262,4 +262,8 @@ do
     run_badblocks $D "${HDD_DATA[$D].dir}" &
 done
 
-print "Boom!"
+exit 0
+
+##
+## end of program
+##
