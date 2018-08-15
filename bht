@@ -8,6 +8,8 @@
 #   -n, --stride=   the number of blocks per test. default is 512
 #   -e, --email=    email address to send notifications
 #   -s, --status    show status of running tests
+#   -d, --directory path to directory with bht data. defaults to current working directory
+#   -t, --terminate terminte all running tests
 USAGE=$'[-?\n@(#)$Id: 0.1\n]'
 USAGE+="[-author?Bond Masuda <bond.masuda@jlbond.com>]"
 USAGE+="[-copyright?Copyright (C) 2018 Bond Masuda.]"
@@ -22,6 +24,7 @@ USAGE+="[n:stride]:[stride:=512?the number of blocks per test. default is 512.]"
 USAGE+="[e:email]:[stride?email address to send notifications.]"
 USAGE+="[s:status?show status of current tests.]"
 USAGE+="[d:directory]:[directory?path to directory with bht data. defaults to current working directory.]"
+USAGE+="[t:terminate?terminate all running tests.]"
 
 ##
 ## configuration settings
@@ -33,6 +36,7 @@ OPT_STRIDE=0
 OPT_EMAIL=0
 OPT_STATUS=0
 OPT_BHTDIR=0
+OPT_TERMINATE=0
 # option variables
 BLOCKS_SIZE=32768
 STRIDE_SIZE=512
@@ -62,16 +66,41 @@ function show_status {
 	    # grab the first part of the status string
 	    _status=$(awk '{gsub(/\b+/,"\n",$0); print}' ${D}/badblocks.out \
 		| awk -F: '$1~"^Testing with" {print $1}')
+	    # insert space
+	    _status+=" "
 	    # now grab the latest of the last part
 	    _status+=$(awk '{gsub(/\b+/,"\n",$0); print}' ${D}/badblocks.out \
 		| awk '!/^$/ {print}' | tail -1)
 	    print -- "$_hdd: $_status"
 	fi
     done
-    # to be worked on
     return 0
 }
     
+#-----------------------------------------------------------------------------
+# description:
+# inputs:
+# outputs:
+# return:
+#-----------------------------------------------------------------------------
+function terminate_tests {
+    typeset _dir=$1
+    typeset _hdd
+    typeset _pid
+
+    for D in $(find ${_dir}/disks -mindepth 1 -type d)
+    do
+	# extract hdd from path $D
+	_hdd=${D##*/}
+	if [[ -f ${D}/badblocks.pid ]] ; then
+	    read _pid <${D}/badblocks.pid
+	    print -- "$_hdd: terminating PID=$_pid."
+	    kill $_pid
+	fi
+    done
+    return 0
+}
+
 #-----------------------------------------------------------------------------
 # description:
 # inputs:
@@ -84,7 +113,13 @@ function run_badblocks {
     typeset _status
 
     print "$_hdd" > $_dir/log
-    badblocks -b $BLOCKS_SIZE -c $STRIDE_SIZE -wsv $_hdd >${_dir}/badblocks.out 2>&1
+    badblocks -b $BLOCKS_SIZE -c $STRIDE_SIZE -wsv $_hdd >${_dir}/badblocks.out 2>&1 &
+    print $! > ${_dir}/badblocks.pid
+    # wait for badblocks to finish
+    wait
+    # collect SMART data after the test
+    TMPFILE=$(mktemp /var/tmp/bht.XXXXXX)
+    smartctl -a $D > ${_dir}/post-test.smart
     # when we're done, send out notification if we have EMAIL
     if [[ -n $EMAIL ]] ; then
 	# grab the first part of the status string
@@ -114,10 +149,11 @@ do
 	e|email)    OPT_EMAIL=1 && EMAIL=$OPTARG	;;
 	s|status)   OPT_STATUS=1			;;
 	d|directory) OPT_BHTDIR=1 && BHTDIR=$OPTARG	;;
+	t|terminate) OPT_TERMINATE=1			;;
     esac
 done
 
-#print "OPT_BLOCKS=$OPT_BLOCKS, OPT_STRIDE=$OPT_STRIDE, OPT_EMAIL=$OPT_EMAIL, OPT_STATUS=$OPT_STATUS, OPT_BHTDIR=$OPT_BHTDIR"
+#print "OPT_BLOCKS=$OPT_BLOCKS, OPT_STRIDE=$OPT_STRIDE, OPT_EMAIL=$OPT_EMAIL, OPT_STATUS=$OPT_STATUS, OPT_BHTDIR=$OPT_BHTDIR, OPT_TERMINATE=$OPT_TERMINATE"
 #print "BLOCKS_SIZE=$BLOCKS_SIZE, STRIDE_SIZE=$STRIDE_SIZE, EMAIL=$EMAIL, BHTDIR=$BHTDIR"
 
 # remaining non-options should be list of hard drives to test
@@ -141,14 +177,19 @@ if (( $(id -u) != 0 )) ; then
 fi
 
 # check conflicting options
-# --status should not be used with --blocks, --stride, --email
+# --status should not be used with --blocks, --stride, --email, --terminate
 if (( $OPT_STATUS == 1 && ( $OPT_BLOCKS == 1 || $OPT_STRIDE == 1 || $OPT_EMAIL == 1 ) )) ; then
-    print "ERR: cannot specify --status with --blocks, --stride, nor --email."
+    print "ERR: cannot specify --status with --terminate, --blocks, --stride, nor --email."
+    exit 1
+fi 
+# --terminate should not be used with --blocks, --stride, --email
+if (( $OPT_TERMINATE == 1 && ( $OPT_BLOCKS == 1 || $OPT_STRIDE == 1 || $OPT_EMAIL == 1 ) )) ; then
+    print "ERR: cannot specify --terminate with --blocks, --stride, nor --email."
     exit 1
 fi 
 
-# if OPT_STATUS=1, then BHTDIR must already exist
-if (( $OPT_STATUS == 1 )) ; then
+# if OPT_STATUS=1 or OPT_TERMINATE=1, then BHTDIR must already exist
+if (( $OPT_STATUS == 1 )) || (( $OPT_TERMINATE == 1 )) ; then
     if [[ ! -d $BHTDIR ]] ; then
 	print "ERR: data directory $BHTDIR doesn't exist."
 	print "ERR: cannot get status of non-existent data."
@@ -173,12 +214,23 @@ if (( $OPT_STATUS == 1 )) ; then
 	print "ERR: $BHTDIR directory doesn't appear to have bht magic?"
 	exit 1
     fi
-    # run show_status
-    show_status $BHTDIR
-    ret=$?
-    if [[ $ret -ne 0 ]] ; then
-	print "ERR: show_status() returned an error code [$ret]."
-	exit 1
+    if (( $OPT_STATUS == 1 )) ; then
+	# run show_status
+	show_status $BHTDIR
+	ret=$?
+	if [[ $ret -ne 0 ]] ; then
+	   print "ERR: show_status() returned an error code [$ret]."
+	    exit 1
+	fi
+    fi
+    if (( $OPT_TERMINATE == 1 )) ; then
+	# run terminate_tests
+	terminate_tests $BHTDIR
+	ret=$?
+	if [[ $ret -ne 0 ]] ; then
+	   print "ERR: terminate_tests() returned an error code [$ret]."
+	    exit 1
+	fi
     fi
     # exit success
     exit 0
