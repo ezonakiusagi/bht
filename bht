@@ -76,11 +76,11 @@ function show_status {
 	    print -- "\tbadblocks[$_status]"
 	    # check SMART data. use post-test.smart if available. fall back on pre-test.smart
 	    if [[ -f ${D}/post-test.smart ]] ; then
-		_smart=$(SMART_check ${D}/post-test.smart)
+		_smart="$(SMART_check ${D}/post-test.smart)"
 	    else
-		_smart=$(SMART_check ${D}/pre-test.smart)
+		_smart="$(SMART_check ${D}/pre-test.smart)"
 	    fi
-	    print -- ${_smart} | awk '{gsub(/^/,"\t"); print}'
+	    print -- "${_smart}" | awk '{gsub(/^/,"\t"); print}'
 	fi
     done
     return 0
