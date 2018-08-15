@@ -42,6 +42,8 @@ BLOCKS_SIZE=32768
 STRIDE_SIZE=512
 EMAIL=
 BHTDIR="$(pwd)"
+# misc
+NL=$'\n'
 
 ##
 ## functions
@@ -157,7 +159,7 @@ function run_badblocks {
     smartctl -a $D > ${_dir}/post-test.smart
     # when we're done, send out notification if we have EMAIL
     if [[ -n $EMAIL ]] ; then
-	_mesg="Model=${HDD_DATA[$_hdd].model}, Serial=${HDD_DATA[$_hdd].serial}"
+	_mesg="Model=${HDD_DATA[$_hdd].model}, Serial=${HDD_DATA[$_hdd].serial}$NL"
 	# grab the first part of the status string
 	_status=$(awk '{gsub(/\b+/,"\n",$0); print}' ${_dir}/badblocks.out \
 	    | awk -F: '$1~"^Testing with" {print $1}')
