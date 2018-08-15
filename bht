@@ -57,6 +57,7 @@ function show_status {
     typeset _dir=$1
     typeset _hdd
     typeset _status
+    typeset _smart
 
     for D in $(find ${_dir}/disks -mindepth 1 -type d)
     do
@@ -71,7 +72,15 @@ function show_status {
 	    # now grab the latest of the last part
 	    _status+=$(awk '{gsub(/\b+/,"\n",$0); print}' ${D}/badblocks.out \
 		| awk '!/^$/ {print}' | tail -1)
-	    print -- "$_hdd: $_status"
+	    print -- "$_hdd:"
+	    print -- "\tbadblocks[$_status]"
+	    # check SMART data. use post-test.smart if available. fall back on pre-test.smart
+	    if [[ -f ${D}/post-test.smart ]] ; then
+		_smart=$(SMART_check ${D}/post-test.smart)
+	    else
+		_smart=$(SMART_check ${D}/pre-test.smart)
+	    fi
+	    print -- ${_smart} | awk '{gsub(/^/,"\t"); print}'
 	fi
     done
     return 0
