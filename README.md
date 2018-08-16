@@ -163,7 +163,7 @@ OPTIONS
                   the size of blocks in bytes. The default value is 32768.
   -n, --stride=stride
                   the number of blocks per test. The default value is 512.
-  -e, --email=stride
+  -e, --email=email
                   email address to send notifications.
   -s, --status    show status of current tests.
   -d, --directory=directory
