@@ -21,7 +21,7 @@ USAGE+="in parallel and allows to user to walk away and "
 USAGE+="login later to check on the results.]"
 USAGE+="[b:blocks]:[blocks:=32768?the size of blocks in bytes.]"
 USAGE+="[n:stride]:[stride:=512?the number of blocks per test.]"
-USAGE+="[e:email]:[stride?email address to send notifications.]"
+USAGE+="[e:email]:[email?email address to send notifications.]"
 USAGE+="[s:status?show status of current tests.]"
 USAGE+="[d:directory]:[directory?path to directory with bht data. defaults to current working directory.]"
 USAGE+="[t:terminate?terminate all running tests.]"
@@ -50,10 +50,10 @@ NL=$'\n'
 ##
 
 #-----------------------------------------------------------------------------
-# description:
-# inputs:
-# outputs:
-# return:
+# description: show status of all hard drive tests
+# inputs: $1=path to data directory
+# outputs: print status to stdout
+# return: 0==success
 #-----------------------------------------------------------------------------
 function show_status {
     typeset _dir=$1
@@ -89,10 +89,10 @@ function show_status {
 }
     
 #-----------------------------------------------------------------------------
-# description:
-# inputs:
-# outputs:
-# return:
+# description: terminate all running badblocks tests
+# inputs: $1=path to data directory
+# outputs: print termination message to stdout
+# return: 0==success
 #-----------------------------------------------------------------------------
 function terminate_tests {
     typeset _dir=$1
@@ -119,10 +119,10 @@ function terminate_tests {
 }
 
 #-----------------------------------------------------------------------------
-# description:
-# inputs:
-# outputs:
-# return:
+# description: check SMART attributes of HDD
+# inputs: $1=path to file containing output from "smartctl -a"
+# outputs: print some SMART attributes to stdout
+# return: none
 #-----------------------------------------------------------------------------
 function SMART_check {
     typeset _file=$1
@@ -139,10 +139,10 @@ function SMART_check {
 }
 
 #-----------------------------------------------------------------------------
-# description:
-# inputs:
-# outputs:
-# return:
+# description: run badblocks tests on hard drives in background
+# inputs: $1=path to block device, $2=folder to write output
+# outputs: none
+# return: 0==success
 #-----------------------------------------------------------------------------
 function run_badblocks {
     typeset _hdd=$1
