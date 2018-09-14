@@ -68,12 +68,12 @@ function show_status {
 	if [[ -f ${D}/badblocks.out ]] ; then
 	    # grab the first part of the status string
 	    _status=$(awk '{gsub(/\b+/,"\n",$0); print}' ${D}/badblocks.out \
-		| awk -F: '$1~"^Testing with" {print $1}')
+		| awk -F: '$1~"^(Testing with|Reading and)" {line=$1} END{print line}') 
 	    # insert space
 	    _status+=" "
 	    # now grab the latest of the last part
 	    _status+=$(awk '{gsub(/\b+/,"\n",$0); print}' ${D}/badblocks.out \
-		| awk '!/^$/ {print}' | tail -1)
+		| awk '!/^$/ {line=$0} END{print line}')
 	    print -- "$_hdd:"
 	    print -- "\tbadblocks[$_status]"
 	    # check SMART data. use post-test.smart if available. fall back on pre-test.smart
@@ -162,12 +162,12 @@ function run_badblocks {
 	_mesg="Model=${HDD_DATA[$_hdd].model}, Serial=${HDD_DATA[$_hdd].serial}$NL"
 	# grab the first part of the status string
 	_status=$(awk '{gsub(/\b+/,"\n",$0); print}' ${_dir}/badblocks.out \
-	    | awk -F: '$1~"^Testing with" {print $1}')
+	    | awk -F: '$1~"^(Testing with|Reading and)" {line=$1} END{print line}')
 	# add a space
 	_status+=" "
 	# now grab the latest of the last part
 	_status+=$(awk '{gsub(/\b+/,"\n",$0); print}' ${_dir}/badblocks.out \
-	    | awk '!/^$/ {print}' | tail -1)
+	    | awk '!/^$/ {line=$0} END{print line}')
 	# append to _mesg
 	_mesg+="badblocks[$_status]$NL"
 	# append SMART check
@@ -206,7 +206,7 @@ typeset -a HDD_LIST=( $@ )
 #print "HDD_LIST size = ${#HDD_LIST[*]}, list = ${HDD_LIST[*]}"
 
 # check that all required external utilities are available
-for p in smartctl badblocks sha256sum mkdir id lsscsi mktemp grep awk mv find tail mailx ps
+for p in smartctl badblocks sha256sum mkdir id lsscsi mktemp grep awk mv find mailx ps
 do
     if ! $(which $p 2>/dev/null 1>&2) ; then
 	print "ERR: $p is not available or not in your PATH. please install $p and try again."
