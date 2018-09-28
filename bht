@@ -206,7 +206,7 @@ typeset -a HDD_LIST=( $@ )
 #print "HDD_LIST size = ${#HDD_LIST[*]}, list = ${HDD_LIST[*]}"
 
 # check that all required external utilities are available
-for p in smartctl badblocks sha256sum mkdir id lsscsi mktemp grep awk mv find mailx ps
+for p in smartctl badblocks sha256sum mkdir id lsscsi mktemp grep awk mv find mailx ps pvs
 do
     if ! $(which $p 2>/dev/null 1>&2) ; then
 	print "ERR: $p is not available or not in your PATH. please install $p and try again."
@@ -285,7 +285,7 @@ fi
 # 2) move to $BHTDIR
 # 3) check that all elements in HDD_LIST are valid HDDs
 if [[ ! -e $BHTDIR ]] || [[ ! -d $BHTDIR ]] ; then
-    mkdir $BHTDIR
+    mkdir -p $BHTDIR
 fi
 sha256sum $0 > ${BHTDIR}/.bht
 
@@ -306,8 +306,31 @@ do
 	continue
     fi
     # make sure it is a "disk" device in lsscsi
-    if (( $(lsscsi | awk '$2=="disk" {print $NF}' | grep -c ${HDD_LIST[i]}) == 0 )) ; then
+    if (( $(lsscsi | awk -v d="${HDD_LIST[i]}" \
+	'BEGIN{i=0} $2=="disk" && $NF==d {i++}END{print i}') == 0 )) ; then
 	print "WARN: ${HDD_LIST[i]} is not a disk in lsscsi. removing from list."
+	unset HDD_LIST[i]
+	continue
+    fi
+    # make sure it is not mounted
+    if (( $(awk -v dev="^${HDD_LIST[i]}[0-9]+" \
+	'BEGIN{i=0} $1~dev {i++} END{print i}' /etc/mtab) > 0 )) ; then
+	print "WARN: ${HDD_LIST[i]} appears to be mounted. removing from list."
+	unset HDD_LIST[i]
+	continue
+    fi
+    # make sure it is not part of a volume group
+    if (( $(pvs --no-headings | awk -v dev="^${HDD_LIST[i]}" \
+	'BEGIN{i=0} $1~dev {i++} END{print i}') > 0 )) ; then
+	print "WARN: ${HDD_LIST[i]} appears to be part of LVM. removing from list."
+	unset HDD_LIST[i]
+	continue
+    fi
+    # if we have zpool, make sure this disk is not part of a ZFS pool
+    if $(which zpool 1>/dev/null 2>&1) && \
+	(( $(zpool status -L -P | awk -v dev="^${HDD_LIST[i]}" \
+	'BEGIN{i=0} $1~dev {i++} END{print i}') > 0 )) ; then
+	print "WARN: ${HDD_LIST[i]} appears to be part of ZFS pool. removing from list."
 	unset HDD_LIST[i]
 	continue
     fi
@@ -340,6 +363,11 @@ do
     smartctl -a $D > $TMPFILE
     HDD_MODEL=$(awk -F: '$1~"^Device Model" {gsub(" ","",$2); print $2}' $TMPFILE)
     HDD_SN=$(awk -F: '$1~"^Serial Number" {gsub(" ","",$2); print $2}' $TMPFILE)
+    # check that we have HDD_MODEL and HDD_SN before proceeding
+    if [[ -z $HDD_MODEL ]] || [[ -z $HDD_SN ]] ; then
+	print "ERR: could not identify model and/or serial number for $D. Abort."
+	exit 1
+    fi
     [[ ! -d ${BHTDIR}/disks/${HDD_MODEL}_${HDD_SN} ]] && mkdir ${BHTDIR}/disks/${HDD_MODEL}_${HDD_SN}
     mv -f $TMPFILE ${BHTDIR}/disks/${HDD_MODEL}_${HDD_SN}/pre-test.smart
     print "INFO: $HDD_MODEL / $HDD_SN"
