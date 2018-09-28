@@ -326,6 +326,7 @@ do
 	unset HDD_LIST[i]
 	continue
     fi
+    ## NEED TO ADD TEST TO CHECK RAID/mdraid
     # if we have zpool, make sure this disk is not part of a ZFS pool
     if $(which zpool 1>/dev/null 2>&1) && \
 	(( $(zpool status -L -P | awk -v dev="^${HDD_LIST[i]}" \
