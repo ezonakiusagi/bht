@@ -60,9 +60,12 @@ function show_status {
     typeset _hdd
     typeset _status
     typeset _smart
+    typeset _hdd_type
 
     for D in $(find ${_dir}/disks -mindepth 1 -type d)
     do
+	# extract hdd_type
+	_hdd_type=$(<${D}/hdd_type)
 	# extract hdd from path $D
 	_hdd=${D##*/}
 	if [[ -f ${D}/badblocks.out ]] ; then
@@ -77,12 +80,14 @@ function show_status {
 	    print -- "$_hdd:"
 	    print -- "\tbadblocks[$_status]"
 	    # check SMART data. use post-test.smart if available. fall back on pre-test.smart
-	    if [[ -f ${D}/post-test.smart ]] ; then
-		_smart="$(SMART_check ${D}/post-test.smart)"
-	    else
-		_smart="$(SMART_check ${D}/pre-test.smart)"
+	    if [[ $_hdd_type == "SATA" ]] ; then
+		if [[ -f ${D}/post-test.smart ]] ; then
+		    _smart="$(SMART_check ${D}/post-test.smart)"
+		else
+		    _smart="$(SMART_check ${D}/pre-test.smart)"
+		fi
+		print -- "${_smart}" | awk '{gsub(/^/,"\t"); print}'
 	    fi
-	    print -- "${_smart}" | awk '{gsub(/^/,"\t"); print}'
 	fi
     done
     return 0
@@ -115,6 +120,37 @@ function terminate_tests {
 	    fi
 	fi
     done
+    return 0
+}
+
+#-----------------------------------------------------------------------------
+# description: print HDD type (SATA or SAS)
+# inputs: $1=path to file containing output from "smartctl -a"
+# outputs: print "SAS" or "SATA"
+# return: none
+#-----------------------------------------------------------------------------
+function print_HDD_type {
+    typeset _file=$1
+    typeset is_SATA=0
+    typeset is_SAS=0
+
+    if [[ $(awk -F'[: ]+' '$1~"^SATA" && $2=="Version" {print $4}' $_file) == "SATA" ]] ; then
+	is_SATA=1
+    fi
+
+    if [[ $(awk -F'[: ]+' '$1~"^Transport" && $2=="protocol" {print $3}' $_file) == "SAS" ]] ; then
+	is_SAS=1
+    fi
+
+    if (( is_SATA == 1 )) && (( is_SAS == 1 )) ; then
+	print "ERR"
+    elif (( is_SATA == 1 )) ; then
+	print "SATA"
+    elif (( is_SAS == 1 )) ; then
+	print "SAS"
+    else
+	print "NA"
+    fi
     return 0
 }
 
@@ -362,8 +398,12 @@ for D in ${HDD_LIST[*]}
 do
     TMPFILE=$(mktemp /var/tmp/bht.XXXXXX)
     smartctl -a $D > $TMPFILE
-    HDD_MODEL=$(awk -F: '$1~"^Device Model" {gsub(" ","",$2); print $2}' $TMPFILE)
-    HDD_SN=$(awk -F: '$1~"^Serial Number" {gsub(" ","",$2); print $2}' $TMPFILE)
+    HDD_DATA[$D].type=$(print_HDD_type $TMPFILE)
+    if [[ ${HDD_DATA[$D].type} == SAS ]] ; then
+	smartctl --xall $D > $TMPFILE
+    fi
+    HDD_MODEL=$(awk -F: '$1~"^(Device Model|Product)" {gsub(" ","",$2); print $2}' $TMPFILE)
+    HDD_SN=$(awk -F: '$1~"^Serial [Nn]umber" {gsub(" ","",$2); print $2}' $TMPFILE)
     # check that we have HDD_MODEL and HDD_SN before proceeding
     if [[ -z $HDD_MODEL ]] || [[ -z $HDD_SN ]] ; then
 	print "ERR: could not identify model and/or serial number for $D. Abort."
@@ -375,6 +415,7 @@ do
     HDD_DATA[$D].dir=${BHTDIR}/disks/${HDD_MODEL}_${HDD_SN}
     HDD_DATA[$D].model=${HDD_MODEL}
     HDD_DATA[$D].serial=${HDD_SN}
+    print "${HDD_DATA[$D].type}" > ${HDD_DATA[$D].dir}/hdd_type
     #HDD_DATA[$D].pre_smart=${BHTDIR}/disks/${HDD_MODEL}_${HDD_SN}/pre-test.smart
 done
 
