@@ -166,6 +166,7 @@ function SMART_check {
     typeset _power_on_time
     typeset _hdd_type=$(print_HDD_type $_file)
 
+    print "HDD Type:[$_hdd_type]"
     if [[ $_hdd_type == "SATA" ]] ; then
 	_5_Reallocated_Sector_Ct=$(awk '$1=="5" && $2=="Reallocated_Sector_Ct" {print $10}' $_file)
 	_9_Power_On_Hours=$(awk '$1=="9" && $2=="Power_On_Hours" {print $10}' $_file)
@@ -173,7 +174,7 @@ function SMART_check {
 	print "SMART:[Reallocated_Sector_Ct=$_5_Reallocated_Sector_Ct]"
 	print "SMART:[Power_On_Hours=$_9_Power_On_Hours]"
 	print "SMART:[Multi_Zone_Error_Rate=$_200_Multi_Zone_Error_Rate]"
-    elif [[ $hdd_type == "SAS" ]] ; then
+    elif [[ $_hdd_type == "SAS" ]] ; then
 	_power_on_time=$(awk '$0~/power on time/ {print $6}' $_file)
 	if [[ -n $_power_on_time ]] ; then
 	    print "SMART:[power_on_time(hours:minutes)=$_power_on_time]"
