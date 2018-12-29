@@ -11,8 +11,8 @@
 #   -d, --directory path to directory with bht data. defaults to current working directory
 #   -t, --terminate terminte all running tests
 USAGE=$'[-?\n@(#)$Id: 0.1\n]'
-USAGE+="[-author?Bond Masuda <bond.masuda@jlbond.com>]"
-USAGE+="[-copyright?Copyright (C) 2018 Bond Masuda.]"
+USAGE+="[-author?Art of Server <the.art.of.server@gmail.com>]"
+USAGE+="[-copyright?Copyright (C) 2018 Art of Server.]"
 USAGE+="[-license?GNU General Public License v3.]"
 USAGE+="[+NAME?bht --- bulk hard-drive tester.]"
 USAGE+="[+DESCRIPTION?bht is a bulk hard drive testing "
