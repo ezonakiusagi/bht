@@ -255,7 +255,13 @@ typeset -a HDD_LIST=( $@ )
 #print "HDD_LIST size = ${#HDD_LIST[*]}, list = ${HDD_LIST[*]}"
 
 # check that all required external utilities are available
-for p in smartctl badblocks sha256sum mkdir id lsscsi mktemp grep awk mv find mailx ps pvs
+if [[ -n $EMAIL ]] ; then
+EXTERNAL_UTILS="smartctl badblocks sha256sum mkdir id lsscsi mktemp grep awk mv find mailx ps pvs"
+else
+EXTERNAL_UTILS="smartctl badblocks sha256sum mkdir id lsscsi mktemp grep awk mv find ps pvs"
+fi
+
+for p in $EXTERNAL_UTILS
 do
     if ! $(which $p 2>/dev/null 1>&2) ; then
 	print "ERR: $p is not available or not in your PATH. please install $p and try again."
@@ -362,9 +368,16 @@ do
 	continue
     fi
     # make sure it is not mounted
-    if (( $(awk -v dev="^${HDD_LIST[i]}[0-9]+" \
+    if (( $(awk -v dev="^${HDD_LIST[i]}[0-9]*" \
 	'BEGIN{i=0} $1~dev {i++} END{print i}' /etc/mtab) > 0 )) ; then
 	print "WARN: ${HDD_LIST[i]} appears to be mounted. removing from list."
+	unset HDD_LIST[i]
+	continue
+    fi
+    # make sure it is not mounted via device mapper
+    if (( $(ls -1 /sys/block/dm-*/slaves | awk -v dev="^${HDD_LIST[i]}[0-9]*" \
+	'BEGIN{i=0} "/dev/" $1~dev {i++} END{print i}') > 0 )) ; then
+	print "WARN: ${HDD_LIST[i]} appears to be mounted via device mapper. removing from list."
 	unset HDD_LIST[i]
 	continue
     fi
@@ -375,7 +388,13 @@ do
 	unset HDD_LIST[i]
 	continue
     fi
-    ## NEED TO ADD TEST TO CHECK RAID/mdraid
+    # make sure it is not part of an mdadm pool
+    if (( $(grep 'md' /proc/mdstat | tr ' ' '\n' | sed -n 's/\[.*//p' | awk -v dev="^${HDD_LIST[i]}" \
+    'BEGIN{i=0} "/dev/" $1~dev {i++} END{print i}') > 0 )) ; then
+    print "WARN: ${HDD_LIST[i]} appears to be part of a mdadm pool. removing from list."
+    unset HDD_LIST[i]
+    continue
+    fi
     # if we have zpool, make sure this disk is not part of a ZFS pool
     if $(which zpool 1>/dev/null 2>&1) && \
 	(( $(zpool status -L -P | awk -v dev="^${HDD_LIST[i]}" \
