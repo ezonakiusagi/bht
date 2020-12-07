@@ -42,6 +42,7 @@ BLOCKS_SIZE=32768
 STRIDE_SIZE=512
 EMAIL=
 BHTDIR="$(pwd)"
+BHT_REQUIRED_UTILITIES="smartctl badblocks sha256sum mkdir id lsscsi mktemp grep awk mv find ps pvs"
 # misc
 NL=$'\n'
 
@@ -239,7 +240,7 @@ do
     case $option in
 	b|blocks)   OPT_BLOCKS=1 && BLOCKS_SIZE=$OPTARG	;;
 	n|stride)   OPT_STRIDE=1 && STRIDE_SIZE=$OPTARG	;;
-	e|email)    OPT_EMAIL=1 && EMAIL=$OPTARG	;;
+	e|email)    OPT_EMAIL=1 && EMAIL=$OPTARG && BHT_REQUIRED_UTILITIES="$BHT_REQUIRED_UTILITIES mailx"	;;
 	s|status)   OPT_STATUS=1			;;
 	d|directory) OPT_BHTDIR=1 && BHTDIR=$OPTARG	;;
 	t|terminate) OPT_TERMINATE=1			;;
@@ -255,7 +256,7 @@ typeset -a HDD_LIST=( $@ )
 #print "HDD_LIST size = ${#HDD_LIST[*]}, list = ${HDD_LIST[*]}"
 
 # check that all required external utilities are available
-for p in smartctl badblocks sha256sum mkdir id lsscsi mktemp grep awk mv find mailx ps pvs
+for p in $BHT_REQUIRED_UTILITIES
 do
     if ! $(which $p 2>/dev/null 1>&2) ; then
 	print "ERR: $p is not available or not in your PATH. please install $p and try again."
