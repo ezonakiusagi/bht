@@ -24,6 +24,7 @@ USAGE+="[n:stride]:[stride:=512?the number of blocks per test.]"
 USAGE+="[e:email]:[email?email address to send notifications.]"
 USAGE+="[s:status?show status of current tests.]"
 USAGE+="[d:directory]:[directory?path to directory with bht data. defaults to current working directory.]"
+USAGE+="[p:pattern]:[pattern to test?blank separated values. multiple pattern hast to be in quoted. badblocks default: \"0xAA 0x55 0xFF 0x00\" ]"
 USAGE+="[t:terminate?terminate all running tests.]"
 
 ##
@@ -36,12 +37,14 @@ OPT_STRIDE=0
 OPT_EMAIL=0
 OPT_STATUS=0
 OPT_BHTDIR=0
+OPT_BHTPATTERN=0
 OPT_TERMINATE=0
 # option variables
 BLOCKS_SIZE=32768
 STRIDE_SIZE=512
 EMAIL=
 BHTDIR="$(pwd)"
+BHTPATTERN=
 BHT_REQUIRED_UTILITIES="smartctl badblocks sha256sum mkdir id lsscsi mktemp grep awk mv find ps pvs"
 # misc
 NL=$'\n'
@@ -184,6 +187,24 @@ function SMART_check {
 }
 
 #-----------------------------------------------------------------------------
+# description: converts the string list into pattern arguments for badblocks
+# inputs: $1=string list of patterns to test
+# outputs: print string list of patterns to stdout
+# return: none
+#-----------------------------------------------------------------------------
+function get_badblocks_pattern_argument {
+  typeset _pattern=($1)
+  typeset _badblocks_argument
+  if [[ ! -z $_pattern ]]; then
+    for pattern in "${_pattern[@]}"
+    do
+      _badblocks_argument="$_badblocks_argument-t $pattern "
+    done
+  fi
+  echo "$_badblocks_argument"
+}
+
+#-----------------------------------------------------------------------------
 # description: run badblocks tests on hard drives in background
 # inputs: $1=path to block device, $2=folder to write output
 # outputs: none
@@ -192,12 +213,13 @@ function SMART_check {
 function run_badblocks {
     typeset _hdd=$1
     typeset _dir=$2
+    typeset _pattern=$(get_badblocks_pattern_argument "$3")
     typeset _status
     typeset _mesg
     typeset _hdd_type=$(<${_dir}/hdd_type)
 
     print "$_hdd" > $_dir/log
-    badblocks -b $BLOCKS_SIZE -c $STRIDE_SIZE -wsv $_hdd >${_dir}/badblocks.out 2>&1 &
+    badblocks -b $BLOCKS_SIZE -c $STRIDE_SIZE $_pattern -wsv $_hdd >${_dir}/badblocks.out 2>&1 &
     print $! > ${_dir}/badblocks.pid
     # wait for badblocks to finish
     wait
@@ -243,6 +265,7 @@ do
 	e|email)    OPT_EMAIL=1 && EMAIL=$OPTARG && BHT_REQUIRED_UTILITIES="$BHT_REQUIRED_UTILITIES mailx"	;;
 	s|status)   OPT_STATUS=1			;;
 	d|directory) OPT_BHTDIR=1 && BHTDIR=$OPTARG	;;
+	p|pattern) OPT_BHTPATTERN=1 && BHTPATTERN=$OPTARG	;;
 	t|terminate) OPT_TERMINATE=1			;;
     esac
 done
@@ -439,7 +462,7 @@ do
     print "INFO: Running badblocks on $D."
     print "INFO: ==> output to ${HDD_DATA[$D].dir}."
     print "INFO: ==> [${HDD_DATA[$D].model}|${HDD_DATA[$D].serial}]"
-    run_badblocks $D "${HDD_DATA[$D].dir}" &
+    run_badblocks $D "${HDD_DATA[$D].dir}" "$BHTPATTERN" &
 done
 
 exit 0
