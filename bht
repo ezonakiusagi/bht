@@ -25,6 +25,7 @@ USAGE+="[e:email]:[email?email address to send notifications.]"
 USAGE+="[s:status?show status of current tests.]"
 USAGE+="[d:directory]:[directory?path to directory with bht data. defaults to current working directory.]"
 USAGE+="[p:pattern]:[pattern to test?blank separated values. multiple pattern hast to be in quoted. badblocks default: \"0xAA 0x55 0xFF 0x00\" ]"
+USAGE+="[f:first-block]:[start at block?number of the block where to start.]"
 USAGE+="[t:terminate?terminate all running tests.]"
 
 ##
@@ -38,6 +39,7 @@ OPT_EMAIL=0
 OPT_STATUS=0
 OPT_BHTDIR=0
 OPT_BHTPATTERN=0
+OPT_BHTFIRST_BLOCK=0
 OPT_TERMINATE=0
 # option variables
 BLOCKS_SIZE=32768
@@ -45,6 +47,7 @@ STRIDE_SIZE=512
 EMAIL=
 BHTDIR="$(pwd)"
 BHTPATTERN=
+BHTFIRST_BLOCK=
 BHT_REQUIRED_UTILITIES="smartctl badblocks sha256sum mkdir id lsscsi mktemp grep awk mv find ps pvs"
 # misc
 NL=$'\n'
@@ -52,6 +55,16 @@ NL=$'\n'
 ##
 ## functions
 ##
+
+#-----------------------------------------------------------------------------
+# description: test variable for integer
+# inputs: $1=vatiable tot test"
+# return: true or false
+#-----------------------------------------------------------------------------
+function is_int {
+    #echo "$1" | grep -E ^\-?[0-9]+$
+    echo "$1" | grep -E ^\-?[0-9]+$ > /dev/null 2>&1
+}
 
 #-----------------------------------------------------------------------------
 # description: show status of all hard drive tests
@@ -201,6 +214,22 @@ function get_badblocks_pattern_argument {
 }
 
 #-----------------------------------------------------------------------------
+# description: retrieve the last block from drive
+# inputs: $1=path to file containing output from "smartctl -a"
+# inputs: $2=block_size"
+# outputs: print last_block number
+# return: none
+#-----------------------------------------------------------------------------
+function get_hdd_last_block {
+  typeset _hdd=$1
+  typeset _block_size=$2
+  #typeset _max_blocks=$(blockdev --getsize64 "$_hdd")
+  #typeset _max_blocks=$(smartctl -ij "$_hdd" | jq .user_capacity.bytes)
+  typeset _max_blocks=$(smartctl -ij /dev/sda | awk -F ":" '/"bytes":/ {print $2}')
+  echo $((_max_blocks / _block_size - 1)) # -1 because last block does not exists!
+}
+
+#-----------------------------------------------------------------------------
 # description: run badblocks tests on hard drives in background
 # inputs: $1=path to block device, $2=folder to write output
 # outputs: none
@@ -210,12 +239,19 @@ function run_badblocks {
     typeset _hdd=$1
     typeset _dir=$2
     typeset _pattern=$(get_badblocks_pattern_argument "$3")
+    typeset _first_block=$4
+
+    typeset _last_block
     typeset _status
     typeset _mesg
     typeset _hdd_type=$(<${_dir}/hdd_type)
 
+    if [ ! -z $_first_block ]; then
+      _last_block=$(get_hdd_last_block "$_hdd" "$BLOCKS_SIZE")
+    fi
+
     print "$_hdd" > $_dir/log
-    badblocks -b $BLOCKS_SIZE -c $STRIDE_SIZE $_pattern -wsv $_hdd >${_dir}/badblocks.out 2>&1 &
+    badblocks -b $BLOCKS_SIZE -c $STRIDE_SIZE $_pattern -wsv $_hdd $_last_block $_first_block >${_dir}/badblocks.out 2>&1 &
     print $! > ${_dir}/badblocks.pid
     # wait for badblocks to finish
     wait
@@ -254,13 +290,14 @@ PID=$$
 while getopts "$USAGE" option
 do
     case $option in
-        b|blocks)    OPT_BLOCKS=1     && BLOCKS_SIZE=$OPTARG ;;
-        n|stride)    OPT_STRIDE=1     && STRIDE_SIZE=$OPTARG ;;
-        e|email)     OPT_EMAIL=1      && EMAIL=$OPTARG && BHT_REQUIRED_UTILITIES="$BHT_REQUIRED_UTILITIES mailx" ;;
-        s|status)    OPT_STATUS=1 ;;
-        d|directory) OPT_BHTDIR=1     && BHTDIR=$OPTARG	;;
-        p|pattern)   OPT_BHTPATTERN=1 && BHTPATTERN=$OPTARG	;;
-        t|terminate) OPT_TERMINATE=1 ;;
+        b|blocks)      OPT_BLOCKS=1         && BLOCKS_SIZE=$OPTARG    ;;
+        n|stride)      OPT_STRIDE=1         && STRIDE_SIZE=$OPTARG    ;;
+        e|email)       OPT_EMAIL=1          && EMAIL=$OPTARG && BHT_REQUIRED_UTILITIES="$BHT_REQUIRED_UTILITIES mailx" ;;
+        s|status)      OPT_STATUS=1                                   ;;
+        d|directory)   OPT_BHTDIR=1         && BHTDIR=$OPTARG	      ;;
+        p|pattern)     OPT_BHTPATTERN=1     && BHTPATTERN=$OPTARG	  ;;
+        f|first-block) OPT_BHTFIRST_BLOCK=1 && BHTFIRST_BLOCK=$OPTARG ;;
+        t|terminate)   OPT_TERMINATE=1                                ;;
     esac
 done
 
@@ -296,6 +333,11 @@ fi
 # --terminate should not be used with --blocks, --stride, --email
 if (( $OPT_TERMINATE == 1 && ( $OPT_BLOCKS == 1 || $OPT_STRIDE == 1 || $OPT_EMAIL == 1 ) )) ; then
     print "ERR: cannot specify --terminate with --blocks, --stride, nor --email."
+    exit 1
+fi
+# --first-block should be numeric
+if [ ! -z "${BHTFIRST_BLOCK}" ] && [ $(is_int $BHTFIRST_BLOCK && echo 1 || echo 0) -eq 0 ]; then
+    print "ERR: --first-block has to be numeric."
     exit 1
 fi
 
@@ -418,6 +460,9 @@ fi
 print "ATTN: this hard drive testing process will wipe all data"
 print "ATTN: on the following hard drives:"
 print "ATTN: ${HDD_LIST[*]}"
+if [ ! -z "${BHTFIRST_BLOCK}" ]; then
+    print "ATTN: staring at block: ${BHTFIRST_BLOCK}"
+fi
 print -n "ATTN: ARE YOU SURE YOU WANT TO PROCEED?: "
 read PROCEED
 if [[ $PROCEED != @(~(+i:yes|y|affirmative)) ]] ; then
@@ -467,7 +512,7 @@ do
     print "INFO: Running badblocks on $D."
     print "INFO: ==> output to ${HDD_DATA[$D].dir}."
     print "INFO: ==> [${HDD_DATA[$D].model}|${HDD_DATA[$D].serial}]"
-    run_badblocks $D "${HDD_DATA[$D].dir}" "$BHTPATTERN" &
+    run_badblocks $D "${HDD_DATA[$D].dir}" "${BHTPATTERN}" "${BHTFIRST_BLOCK}" &
 done
 
 exit 0
