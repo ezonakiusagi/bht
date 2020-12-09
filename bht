@@ -4,12 +4,14 @@
 ## USAGE definition
 ##
 # usage: bht [options] [list of hdds]
-#   -b, --blocks=   the size of blocks in bytes. default is 32768
-#   -n, --stride=   the number of blocks per test. default is 512
-#   -e, --email=    email address to send notifications
-#   -s, --status    show status of running tests
-#   -d, --directory path to directory with bht data. defaults to current working directory
-#   -t, --terminate terminte all running tests
+#   -b, --blocks=     the size of blocks in bytes. default is 32768
+#   -n, --stride=     the number of blocks per test. default is 512
+#   -e, --email=      email address to send notifications
+#   -s, --status      show status of running tests
+#   -d, --directory   path to directory with bht data. defaults to current working directory
+#   -p, --pattern     pattern to test, blank separated values. multiple pattern hast to be in quoted. badblocks default: "0xAA 0x55 0xFF 0x00"
+#   -f, --first-block start at block, number of the block where to start.
+#   -t, --terminate terminate all running tests
 USAGE=$'[-?\n@(#)$Id: 0.1\n]'
 USAGE+="[-author?Art of Server <the.art.of.server@gmail.com>]"
 USAGE+="[-copyright?Copyright (C) 2018 Art of Server.]"
