@@ -68,33 +68,31 @@ function show_status {
 
     for D in $(find ${_dir}/disks -mindepth 1 -type d)
     do
-	# extract hdd_type
-	_hdd_type=$(<${D}/hdd_type)
-	# extract hdd from path $D
-	_hdd=${D##*/}
-	if [[ -f ${D}/badblocks.out ]] ; then
-	    # grab the first part of the status string
-	    _status=$(awk '{gsub(/\b+/,"\n",$0); print}' ${D}/badblocks.out \
-		| awk -F: '$1~"^(Testing with|Reading and)" {line=$1} END{print line}') 
-	    # insert space
-	    _status+=" "
-	    # now grab the latest of the last part
-	    _status+=$(awk '{gsub(/\b+/,"\n",$0); print}' ${D}/badblocks.out \
-		| awk '!/^$/ {line=$0} END{print line}')
-	    print -- "$_hdd:"
-	    print -- "\tbadblocks[$_status]"
-	    # check SMART data. use post-test.smart if available. fall back on pre-test.smart
-	    if [[ -f ${D}/post-test.smart ]] ; then
-	        _smart="$(SMART_check ${D}/post-test.smart)"
-	    else
-	        _smart="$(SMART_check ${D}/pre-test.smart)"
-	    fi
-	    print -- "${_smart}" | awk '{gsub(/^/,"\t"); print}'
-	fi
+        # extract hdd_type
+        _hdd_type=$(<${D}/hdd_type)
+        # extract hdd from path $D
+        _hdd=${D##*/}
+        if [[ -f ${D}/badblocks.out ]] ; then
+            # grab the first part of the status string
+            _status=$(awk '{gsub(/\b+/,"\n",$0); print}' ${D}/badblocks.out | awk -F: '$1~"^(Testing with|Reading and)" {line=$1} END{print line}')
+            # insert space
+            _status+=" "
+            # now grab the latest of the last part
+            _status+=$(awk '{gsub(/\b+/,"\n",$0); print}' ${D}/badblocks.out | awk '!/^$/ {line=$0} END{print line}')
+            print -- "$_hdd:"
+            print -- "\tbadblocks[$_status]"
+            # check SMART data. use post-test.smart if available. fall back on pre-test.smart
+            if [[ -f ${D}/post-test.smart ]] ; then
+                _smart="$(SMART_check ${D}/post-test.smart)"
+            else
+                _smart="$(SMART_check ${D}/pre-test.smart)"
+            fi
+            print -- "${_smart}" | awk '{gsub(/^/,"\t"); print}'
+        fi
     done
     return 0
 }
-    
+
 #-----------------------------------------------------------------------------
 # description: terminate all running badblocks tests
 # inputs: $1=path to data directory
@@ -108,19 +106,17 @@ function terminate_tests {
 
     for D in $(find ${_dir}/disks -mindepth 1 -type d)
     do
-	# extract hdd from path $D
-	_hdd=${D##*/}
-	if [[ -f ${D}/badblocks.pid ]] ; then
-	    read _pid <${D}/badblocks.pid
-	    # check pid is actually for badblocks
-	    if [[ "$(ps -eo pid,comm \
-		| awk -v pid=$_pid '$1==pid && $2=="badblocks" {print $1}')" \
-		-eq $_pid ]] ; then
-		# print message
-		print -- "$_hdd: terminating PID=$_pid."
-		kill $_pid
-	    fi
-	fi
+        # extract hdd from path $D
+        _hdd=${D##*/}
+        if [[ -f ${D}/badblocks.pid ]] ; then
+            read _pid <${D}/badblocks.pid
+            # check pid is actually for badblocks
+            if [[ "$(ps -eo pid,comm | awk -v pid=$_pid '$1==pid && $2=="badblocks" {print $1}')" -eq $_pid ]] ; then
+                # print message
+                print -- "$_hdd: terminating PID=$_pid."
+                kill $_pid
+            fi
+        fi
     done
     return 0
 }
@@ -137,21 +133,21 @@ function print_HDD_type {
     typeset is_SAS=0
 
     if [[ $(awk -F'[: ]+' '$1~"^SATA" && $2=="Version" {print $4}' $_file) == "SATA" ]] ; then
-	is_SATA=1
+	    is_SATA=1
     fi
 
     if [[ $(awk -F'[: ]+' '$1~"^Transport" && $2=="protocol" {print $3}' $_file) == "SAS" ]] ; then
-	is_SAS=1
+	    is_SAS=1
     fi
 
     if (( is_SATA == 1 )) && (( is_SAS == 1 )) ; then
-	print "ERR"
+	    print "ERR"
     elif (( is_SATA == 1 )) ; then
-	print "SATA"
+	    print "SATA"
     elif (( is_SAS == 1 )) ; then
-	print "SAS"
+    	print "SAS"
     else
-	print "NA"
+	    print "NA"
     fi
     return 0
 }
@@ -172,17 +168,17 @@ function SMART_check {
 
     print "HDD Type:[$_hdd_type]"
     if [[ $_hdd_type == "SATA" ]] ; then
-	_5_Reallocated_Sector_Ct=$(awk '$1=="5" && $2=="Reallocated_Sector_Ct" {print $10}' $_file)
-	_9_Power_On_Hours=$(awk '$1=="9" && $2=="Power_On_Hours" {print $10}' $_file)
-	_200_Multi_Zone_Error_Rate=$(awk '$1=="200" && $2=="Multi_Zone_Error_Rate" {print $10}' $_file)
-	print "SMART:[Reallocated_Sector_Ct=$_5_Reallocated_Sector_Ct]"
-	print "SMART:[Power_On_Hours=$_9_Power_On_Hours]"
-	print "SMART:[Multi_Zone_Error_Rate=$_200_Multi_Zone_Error_Rate]"
+        _5_Reallocated_Sector_Ct=$(awk '$1=="5" && $2=="Reallocated_Sector_Ct" {print $10}' $_file)
+        _9_Power_On_Hours=$(awk '$1=="9" && $2=="Power_On_Hours" {print $10}' $_file)
+        _200_Multi_Zone_Error_Rate=$(awk '$1=="200" && $2=="Multi_Zone_Error_Rate" {print $10}' $_file)
+        print "SMART:[Reallocated_Sector_Ct=$_5_Reallocated_Sector_Ct]"
+        print "SMART:[Power_On_Hours=$_9_Power_On_Hours]"
+        print "SMART:[Multi_Zone_Error_Rate=$_200_Multi_Zone_Error_Rate]"
     elif [[ $_hdd_type == "SAS" ]] ; then
-	_power_on_time=$(awk '$0~/power on time/ {print $6}' $_file)
-	if [[ -n $_power_on_time ]] ; then
-	    print "SMART:[power_on_time(hours:minutes)=$_power_on_time]"
-	fi
+        _power_on_time=$(awk '$0~/power on time/ {print $6}' $_file)
+        if [[ -n $_power_on_time ]] ; then
+            print "SMART:[power_on_time(hours:minutes)=$_power_on_time]"
+        fi
     fi
 }
 
@@ -225,26 +221,24 @@ function run_badblocks {
     wait
     # collect SMART data after the test
     if [[ $_hdd_type == "SATA" ]] ; then
-	smartctl -a $D > ${_dir}/post-test.smart
+	    smartctl -a $D > ${_dir}/post-test.smart
     elif [[ $_hdd_type == "SAS" ]] ; then
-	smartctl --xall $D > ${_dir}/post-test.smart
+	    smartctl --xall $D > ${_dir}/post-test.smart
     fi
     # when we're done, send out notification if we have EMAIL
     if [[ -n $EMAIL ]] ; then
-	_mesg="Model=${HDD_DATA[$_hdd].model}, Serial=${HDD_DATA[$_hdd].serial}$NL"
-	# grab the first part of the status string
-	_status=$(awk '{gsub(/\b+/,"\n",$0); print}' ${_dir}/badblocks.out \
-	    | awk -F: '$1~"^(Testing with|Reading and)" {line=$1} END{print line}')
-	# add a space
-	_status+=" "
-	# now grab the latest of the last part
-	_status+=$(awk '{gsub(/\b+/,"\n",$0); print}' ${_dir}/badblocks.out \
-	    | awk '!/^$/ {line=$0} END{print line}')
-	# append to _mesg
-	_mesg+="badblocks[$_status]$NL"
-	# append SMART check
-	_mesg+="$(SMART_check ${_dir}/post-test.smart)"
-	print "$_mesg"|mailx -s "badblocks testing of $_hdd ended" $EMAIL
+	    _mesg="Model=${HDD_DATA[$_hdd].model}, Serial=${HDD_DATA[$_hdd].serial}$NL"
+	    # grab the first part of the status string
+	    _status=$(awk '{gsub(/\b+/,"\n",$0); print}' ${_dir}/badblocks.out | awk -F: '$1~"^(Testing with|Reading and)" {line=$1} END{print line}')
+	    # add a space
+	    _status+=" "
+	    # now grab the latest of the last part
+	    _status+=$(awk '{gsub(/\b+/,"\n",$0); print}' ${_dir}/badblocks.out | awk '!/^$/ {line=$0} END{print line}')
+	    # append to _mesg
+	    _mesg+="badblocks[$_status]$NL"
+	    # append SMART check
+	    _mesg+="$(SMART_check ${_dir}/post-test.smart)"
+	    print "$_mesg"|mailx -s "badblocks testing of $_hdd ended" $EMAIL
     fi
     return 0
 }
@@ -260,13 +254,13 @@ PID=$$
 while getopts "$USAGE" option
 do
     case $option in
-	b|blocks)   OPT_BLOCKS=1 && BLOCKS_SIZE=$OPTARG	;;
-	n|stride)   OPT_STRIDE=1 && STRIDE_SIZE=$OPTARG	;;
-	e|email)    OPT_EMAIL=1 && EMAIL=$OPTARG && BHT_REQUIRED_UTILITIES="$BHT_REQUIRED_UTILITIES mailx"	;;
-	s|status)   OPT_STATUS=1			;;
-	d|directory) OPT_BHTDIR=1 && BHTDIR=$OPTARG	;;
-	p|pattern) OPT_BHTPATTERN=1 && BHTPATTERN=$OPTARG	;;
-	t|terminate) OPT_TERMINATE=1			;;
+        b|blocks)    OPT_BLOCKS=1     && BLOCKS_SIZE=$OPTARG ;;
+        n|stride)    OPT_STRIDE=1     && STRIDE_SIZE=$OPTARG ;;
+        e|email)     OPT_EMAIL=1      && EMAIL=$OPTARG && BHT_REQUIRED_UTILITIES="$BHT_REQUIRED_UTILITIES mailx" ;;
+        s|status)    OPT_STATUS=1 ;;
+        d|directory) OPT_BHTDIR=1     && BHTDIR=$OPTARG	;;
+        p|pattern)   OPT_BHTPATTERN=1 && BHTPATTERN=$OPTARG	;;
+        t|terminate) OPT_TERMINATE=1 ;;
     esac
 done
 
@@ -282,8 +276,8 @@ typeset -a HDD_LIST=( $@ )
 for p in $BHT_REQUIRED_UTILITIES
 do
     if ! $(which $p 2>/dev/null 1>&2) ; then
-	print "ERR: $p is not available or not in your PATH. please install $p and try again."
-	exit 1
+        print "ERR: $p is not available or not in your PATH. please install $p and try again."
+        exit 1
     fi
 done
 
@@ -298,56 +292,62 @@ fi
 if (( $OPT_STATUS == 1 && ( $OPT_BLOCKS == 1 || $OPT_STRIDE == 1 || $OPT_EMAIL == 1 ) )) ; then
     print "ERR: cannot specify --status with --terminate, --blocks, --stride, nor --email."
     exit 1
-fi 
+fi
 # --terminate should not be used with --blocks, --stride, --email
 if (( $OPT_TERMINATE == 1 && ( $OPT_BLOCKS == 1 || $OPT_STRIDE == 1 || $OPT_EMAIL == 1 ) )) ; then
     print "ERR: cannot specify --terminate with --blocks, --stride, nor --email."
     exit 1
-fi 
+fi
 
 # if OPT_STATUS=1 or OPT_TERMINATE=1, then BHTDIR must already exist
 if (( $OPT_STATUS == 1 )) || (( $OPT_TERMINATE == 1 )) ; then
+
     if [[ ! -d $BHTDIR ]] ; then
-	print "ERR: data directory $BHTDIR doesn't exist."
-	print "ERR: cannot get status of non-existent data."
-	exit 1
+        print "ERR: data directory $BHTDIR doesn't exist."
+        print "ERR: cannot get status of non-existent data."
+        exit 1
     fi
+
     # must have r and x permissions
     if [[ ! -x $BHTDIR ]] ; then
-	print "ERR: data directory $BHTDIR is not accessible by you."
-	exit 1
+        print "ERR: data directory $BHTDIR is not accessible by you."
+        exit 1
     fi
+
     if [[ ! -r $BHTDIR ]] ; then
-	print "ERR: data directory $BHTDIR is not readable by you."
-	exit 1
+        print "ERR: data directory $BHTDIR is not readable by you."
+        exit 1
     fi
+
     # check for magic file
     if [[ -f ${BHTDIR}/.bht ]] ; then
-	# compare checksum
-	if [[ $(sha256sum $0| awk '{print $1}') != $(awk '{print $1}' ${BHTDIR}/.bht) ]] ; then
-	    print "WARN: $BHTDIR has data generated by a different version of bht."
-	fi
+        # compare checksum
+        if [[ $(sha256sum $0| awk '{print $1}') != $(awk '{print $1}' ${BHTDIR}/.bht) ]] ; then
+            print "WARN: $BHTDIR has data generated by a different version of bht."
+        fi
     else
-	print "ERR: $BHTDIR directory doesn't appear to have bht magic?"
-	exit 1
+        print "ERR: $BHTDIR directory doesn't appear to have bht magic?"
+        exit 1
     fi
+
     if (( $OPT_STATUS == 1 )) ; then
-	# run show_status
-	show_status $BHTDIR
-	ret=$?
-	if [[ $ret -ne 0 ]] ; then
-	   print "ERR: show_status() returned an error code [$ret]."
-	    exit 1
-	fi
+        # run show_status
+        show_status $BHTDIR
+        ret=$?
+        if [[ $ret -ne 0 ]] ; then
+           print "ERR: show_status() returned an error code [$ret]."
+           exit 1
+        fi
     fi
+
     if (( $OPT_TERMINATE == 1 )) ; then
-	# run terminate_tests
-	terminate_tests $BHTDIR
-	ret=$?
-	if [[ $ret -ne 0 ]] ; then
-	   print "ERR: terminate_tests() returned an error code [$ret]."
-	    exit 1
-	fi
+        # run terminate_tests
+        terminate_tests $BHTDIR
+        ret=$?
+        if [[ $ret -ne 0 ]] ; then
+           print "ERR: terminate_tests() returned an error code [$ret]."
+           exit 1
+        fi
     fi
     # exit success
     exit 0
@@ -374,41 +374,41 @@ for i in ${!HDD_LIST[*]}
 do
     # make sure it is a block device
     if [[ ! -b ${HDD_LIST[i]} ]] ; then
-	print "WARN: ${HDD_LIST[i]} is not a block device. removing from list."
-	unset HDD_LIST[i]
-	continue
+        print "WARN: ${HDD_LIST[i]} is not a block device. removing from list."
+        unset HDD_LIST[i]
+        continue
     fi
+
     # make sure it is a "disk" device in lsscsi
-    if (( $(lsscsi | awk -v d="${HDD_LIST[i]}" \
-	'BEGIN{i=0} $2=="disk" && $NF==d {i++}END{print i}') == 0 )) ; then
-	print "WARN: ${HDD_LIST[i]} is not a disk in lsscsi. removing from list."
-	unset HDD_LIST[i]
-	continue
+    if (( $(lsscsi | awk -v d="${HDD_LIST[i]}" 'BEGIN{i=0} $2=="disk" && $NF==d {i++}END{print i}') == 0 )) ; then
+        print "WARN: ${HDD_LIST[i]} is not a disk in lsscsi. removing from list."
+        unset HDD_LIST[i]
+        continue
     fi
+
     # make sure it is not mounted
-    if (( $(awk -v dev="^${HDD_LIST[i]}[0-9]+" \
-	'BEGIN{i=0} $1~dev {i++} END{print i}' /etc/mtab) > 0 )) ; then
-	print "WARN: ${HDD_LIST[i]} appears to be mounted. removing from list."
-	unset HDD_LIST[i]
-	continue
+    if (( $(awk -v dev="^${HDD_LIST[i]}[0-9]+" 'BEGIN{i=0} $1~dev {i++} END{print i}' /etc/mtab) > 0 )) ; then
+        print "WARN: ${HDD_LIST[i]} appears to be mounted. removing from list."
+        unset HDD_LIST[i]
+        continue
     fi
+
     # make sure it is not part of a volume group
-    if (( $(pvs --no-headings | awk -v dev="^${HDD_LIST[i]}" \
-	'BEGIN{i=0} $1~dev {i++} END{print i}') > 0 )) ; then
-	print "WARN: ${HDD_LIST[i]} appears to be part of LVM. removing from list."
-	unset HDD_LIST[i]
-	continue
+    if (( $(pvs --no-headings | awk -v dev="^${HDD_LIST[i]}" 'BEGIN{i=0} $1~dev {i++} END{print i}') > 0 )) ; then
+        print "WARN: ${HDD_LIST[i]} appears to be part of LVM. removing from list."
+        unset HDD_LIST[i]
+        continue
     fi
+
     ## NEED TO ADD TEST TO CHECK RAID/mdraid
     # if we have zpool, make sure this disk is not part of a ZFS pool
-    if $(which zpool 1>/dev/null 2>&1) && \
-	(( $(zpool status -L -P | awk -v dev="^${HDD_LIST[i]}" \
-	'BEGIN{i=0} $1~dev {i++} END{print i}') > 0 )) ; then
-	print "WARN: ${HDD_LIST[i]} appears to be part of ZFS pool. removing from list."
-	unset HDD_LIST[i]
-	continue
+    if $(which zpool 1>/dev/null 2>&1) && (( $(zpool status -L -P | awk -v dev="^${HDD_LIST[i]}" 'BEGIN{i=0} $1~dev {i++} END{print i}') > 0 )) ; then
+        print "WARN: ${HDD_LIST[i]} appears to be part of ZFS pool. removing from list."
+        unset HDD_LIST[i]
+        continue
     fi
 done
+
 if (( ${#HDD_LIST[*]} == 0 )) ; then
     print "ERR: no hard drives found in list. aborting."
     exit 1
@@ -433,19 +433,24 @@ print "INFO: collecting SMART data from each drive."
 typeset -A HDD_DATA
 for D in ${HDD_LIST[*]}
 do
+
     TMPFILE=$(mktemp /var/tmp/bht.XXXXXX)
     smartctl -a $D > $TMPFILE
     HDD_DATA[$D].type=$(print_HDD_type $TMPFILE)
+
     if [[ ${HDD_DATA[$D].type} == SAS ]] ; then
-	smartctl --xall $D > $TMPFILE
+	    smartctl --xall $D > $TMPFILE
     fi
+
     HDD_MODEL=$(awk -F: '$1~"^(Device Model|Product)" {gsub(" ","",$2); print $2}' $TMPFILE)
     HDD_SN=$(awk -F: '$1~"^Serial [Nn]umber" {gsub(" ","",$2); print $2}' $TMPFILE)
+
     # check that we have HDD_MODEL and HDD_SN before proceeding
     if [[ -z $HDD_MODEL ]] || [[ -z $HDD_SN ]] ; then
-	print "ERR: could not identify model and/or serial number for $D. Abort."
-	exit 1
+	    print "ERR: could not identify model and/or serial number for $D. Abort."
+	    exit 1
     fi
+
     [[ ! -d ${BHTDIR}/disks/${HDD_MODEL}_${HDD_SN} ]] && mkdir ${BHTDIR}/disks/${HDD_MODEL}_${HDD_SN}
     mv -f $TMPFILE ${BHTDIR}/disks/${HDD_MODEL}_${HDD_SN}/pre-test.smart
     print "INFO: $HDD_MODEL / $HDD_SN"
