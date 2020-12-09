@@ -328,13 +328,14 @@ fi
 
 # check conflicting options
 # --status should not be used with --blocks, --stride, --email, --terminate
-if (( $OPT_STATUS == 1 && ( $OPT_BLOCKS == 1 || $OPT_STRIDE == 1 || $OPT_EMAIL == 1 ) )) ; then
-    print "ERR: cannot specify --status with --terminate, --blocks, --stride, nor --email."
+if (( $OPT_STATUS == 1 && ( $OPT_BLOCKS == 1 || $OPT_STRIDE == 1 || $OPT_EMAIL == 1 || $OPT_BHTPATTERN == 1 || $OPT_BHTFIRST_BLOCK == 1 ) )) ; then
+    print "ERR: cannot specify --status with --terminate, --blocks, --stride, --email, --pattern, nor --first-block.."
     exit 1
 fi
+
 # --terminate should not be used with --blocks, --stride, --email
-if (( $OPT_TERMINATE == 1 && ( $OPT_BLOCKS == 1 || $OPT_STRIDE == 1 || $OPT_EMAIL == 1 ) )) ; then
-    print "ERR: cannot specify --terminate with --blocks, --stride, nor --email."
+if (( $OPT_TERMINATE == 1 && ( $OPT_BLOCKS == 1 || $OPT_STRIDE == 1 || $OPT_EMAIL == 1 || $OPT_BHTPATTERN == 1 || $OPT_BHTFIRST_BLOCK == 1 ) )) ; then
+    print "ERR: cannot specify --terminate with --blocks, --stride, --email, --pattern, nor --first-block."
     exit 1
 fi
 # --first-block should be numeric
