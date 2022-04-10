@@ -85,7 +85,7 @@ function show_status {
 	    else
 	        _smart="$(SMART_check ${D}/pre-test.smart)"
 	    fi
-	    print -- "${_smart}" | awk '{gsub(/^/,"\t"); print}'
+	    print -- "${_smart}" | awk '$0="\t"$0'
 	fi
     done
     return 0
