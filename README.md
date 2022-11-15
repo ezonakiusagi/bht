@@ -12,6 +12,10 @@ i wrote bht on Linux with ksh93, so it requires the following to run:
 
 along with a few standard Unix utilities like: mktemp, grep, awk, find, tail, mailx, ps, mkdir, mv, id.
 
+On Debian, and derivative Linux distributions, this command should install all the requirements:
+```
+sudo apt-get install smartmontools lsscsi mailutils ksh
+```
 # HOW TO USE
 first, create a directory to store your test data:
 ```
