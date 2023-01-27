@@ -14,7 +14,7 @@ along with a few standard Unix utilities like: mktemp, grep, awk, find, tail, ma
 
 On Debian, and derivative Linux distributions, this command should install all the requirements:
 ```
-sudo apt-get install smartmontools lsscsi mailutils ksh
+sudo apt-get install smartmontools lsscsi mailutils ksh lvm2
 ```
 # HOW TO USE
 first, create a directory to store your test data:
