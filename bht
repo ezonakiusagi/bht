@@ -229,7 +229,7 @@ function run_badblocks {
 		print "$_mesg"|mailx -s "badblocks testing of $_hdd ended" $EMAIL
 	fi
 	if [[ -n $WEBHOOK ]] ; then
-		curl -H "Content-Type: application/json" -d "{\"username\": \"BHT\", \"content\": \"Badblocks testing of $_hdd ended. $_mesg\"}" $WEBHOOK
+		curl -H "Content-Type: application/json" -d "{\"username\": \"BHT\", \"content\": \"Badblocks testing of $_hdd ended.\"}" $WEBHOOK
 	fi
     fi
     return 0
