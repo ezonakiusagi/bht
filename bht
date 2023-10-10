@@ -7,6 +7,7 @@
 #   -b, --blocks=   the size of blocks in bytes. default is 32768
 #   -n, --stride=   the number of blocks per test. default is 512
 #   -e, --email=    email address to send notifications
+#   -w, --webhook=  discord webhook url
 #   -s, --status    show status of running tests
 #   -d, --directory path to directory with bht data. defaults to current working directory
 #   -t, --terminate terminte all running tests
@@ -22,6 +23,7 @@ USAGE+="login later to check on the results.]"
 USAGE+="[b:blocks]:[blocks:=32768?the size of blocks in bytes.]"
 USAGE+="[n:stride]:[stride:=512?the number of blocks per test.]"
 USAGE+="[e:email]:[email?email address to send notifications.]"
+USAGE+="[w:webhook]:[webhook?discord webhook url to send notifications.]"
 USAGE+="[s:status?show status of current tests.]"
 USAGE+="[d:directory]:[directory?path to directory with bht data. defaults to current working directory.]"
 USAGE+="[t:terminate?terminate all running tests.]"
@@ -34,6 +36,7 @@ USAGE+="[t:terminate?terminate all running tests.]"
 OPT_BLOCKS=0
 OPT_STRIDE=0
 OPT_EMAIL=0
+OPT_WEBHOOK=0
 OPT_STATUS=0
 OPT_BHTDIR=0
 OPT_TERMINATE=0
@@ -41,6 +44,7 @@ OPT_TERMINATE=0
 BLOCKS_SIZE=32768
 STRIDE_SIZE=512
 EMAIL=
+WEBHOOK=
 BHTDIR="$(pwd)"
 # misc
 NL=$'\n'
@@ -206,8 +210,8 @@ function run_badblocks {
     elif [[ $_hdd_type == "SAS" ]] ; then
 	smartctl --xall $D > ${_dir}/post-test.smart
     fi
-    # when we're done, send out notification if we have EMAIL
-    if [[ -n $EMAIL ]] ; then
+    # when we're done, send out notification if we have EMAIL or WEBHOOK
+    if [[ -n $EMAIL || -n $WEBHOOK ]] ; then
 	_mesg="Model=${HDD_DATA[$_hdd].model}, Serial=${HDD_DATA[$_hdd].serial}$NL"
 	# grab the first part of the status string
 	_status=$(awk '{gsub(/\b+/,"\n",$0); print}' ${_dir}/badblocks.out \
@@ -221,7 +225,12 @@ function run_badblocks {
 	_mesg+="badblocks[$_status]$NL"
 	# append SMART check
 	_mesg+="$(SMART_check ${_dir}/post-test.smart)"
-	print "$_mesg"|mailx -s "badblocks testing of $_hdd ended" $EMAIL
+	if [[ -n $EMAIL ]] ; then
+		print "$_mesg"|mailx -s "badblocks testing of $_hdd ended" $EMAIL
+	fi
+	if [[ -n $WEBHOOK ]] ; then
+		curl -H "Content-Type: application/json" -d "{\"username\": \"BHT\", \"content\": \"Badblocks testing of $_hdd ended.\"}" $WEBHOOK
+	fi
     fi
     return 0
 }
@@ -240,6 +249,7 @@ do
 	b|blocks)   OPT_BLOCKS=1 && BLOCKS_SIZE=$OPTARG	;;
 	n|stride)   OPT_STRIDE=1 && STRIDE_SIZE=$OPTARG	;;
 	e|email)    OPT_EMAIL=1 && EMAIL=$OPTARG	;;
+	w|webhook)  OPT_WEBHOOK=1 && WEBHOOK=$OPTARG	;;
 	s|status)   OPT_STATUS=1			;;
 	d|directory) OPT_BHTDIR=1 && BHTDIR=$OPTARG	;;
 	t|terminate) OPT_TERMINATE=1			;;
@@ -270,14 +280,14 @@ if (( $(id -u) != 0 )) ; then
 fi
 
 # check conflicting options
-# --status should not be used with --blocks, --stride, --email, --terminate
-if (( $OPT_STATUS == 1 && ( $OPT_BLOCKS == 1 || $OPT_STRIDE == 1 || $OPT_EMAIL == 1 ) )) ; then
-    print "ERR: cannot specify --status with --terminate, --blocks, --stride, nor --email."
+# --status should not be used with --blocks, --stride, --email, --terminate, --webhook
+if (( $OPT_STATUS == 1 && ( $OPT_BLOCKS == 1 || $OPT_STRIDE == 1 || $OPT_EMAIL == 1 || $OPT_WEBHOOK == 1) )) ; then
+    print "ERR: cannot specify --status with --terminate, --blocks, --stride, --email, nor --webhook."
     exit 1
 fi 
-# --terminate should not be used with --blocks, --stride, --email
-if (( $OPT_TERMINATE == 1 && ( $OPT_BLOCKS == 1 || $OPT_STRIDE == 1 || $OPT_EMAIL == 1 ) )) ; then
-    print "ERR: cannot specify --terminate with --blocks, --stride, nor --email."
+# --terminate should not be used with --blocks, --stride, --email, --webhook
+if (( $OPT_TERMINATE == 1 && ( $OPT_BLOCKS == 1 || $OPT_STRIDE == 1 || $OPT_EMAIL == 1 || $OPT_WEBHOOK == 1 ) )) ; then
+    print "ERR: cannot specify --terminate with --blocks, --stride, --email, nor --webhook."
     exit 1
 fi 
 
